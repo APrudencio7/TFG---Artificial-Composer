@@ -3,12 +3,9 @@ package simulator;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.Map.Entry;
@@ -23,7 +20,8 @@ public class SimulationConfigurator {
 	private int numberOfSounds;
 	private int numberOfBars;
 	private ArrayList<DrumSound> sounds;
-	private SortedMap<Integer, Set<DrumSound>> soundsOrdered;
+	private SortedMap<Integer, List<DrumSound>> soundsOrdered;
+	private SimulationEvaluation evaluation;
 	
 	/**
 	 * Constructor of the simulation configurator.
@@ -35,9 +33,23 @@ public class SimulationConfigurator {
 		this.numberOfSounds = numSounds;
 		this.numberOfBars = numBars;
 		this.sounds = new ArrayList<DrumSound>();
-		this.soundsOrdered = new TreeMap<Integer, Set<DrumSound>>();
+		this.soundsOrdered = new TreeMap<Integer, List<DrumSound>>();
+		this.evaluation = new SimulationEvaluation();
 	}
 	
+	/**
+	 * Alternative constructor of the simulation configurator.
+	 * 
+	 */
+	public SimulationConfigurator(SimulationConfigurator simulation) {
+		this.bpm = simulation.getBeatsPerMinute();
+		this.numberOfSounds = simulation.getNumberOfSounds();
+		this.numberOfBars = simulation.getNumberOfBars();
+		this.sounds = simulation.getSounds();
+		this.soundsOrdered = simulation.getSoundsOrdered();
+		this.evaluation = new SimulationEvaluation(simulation.getEvaluation());
+	}
+
 	/**
 	 * Randomly selects N sounds without repetition from a library. 
 	 * It selects always at least 2 Drums sounds.
@@ -47,7 +59,7 @@ public class SimulationConfigurator {
 	 * @return A set composed of N sounds.
 	 * @throws IOException 
 	 */
-	public void soundRandomizer(BufferedWriter metricsPath) throws IOException {
+	public void soundRandomizer(BufferedWriter metricsPath, String[] args, Boolean optimize) throws IOException {
 		DrumSound auxDrum;
 		String sound = "/Drums";
 		Random rand = new Random();
@@ -56,76 +68,197 @@ public class SimulationConfigurator {
 		typeOfDrum auxType;
 		
 		// Metrics variables.
-		int numKicks = 0;
-		int numSnares = 0;
-		int numClaps = 0;
-		int numHHC = 0;
-		int numHHO = 0;
-		int numCymbals = 0;
-		int numPercs = 0;
-		double autoEval = 0;
-		
-		while(this.sounds.size() < this.numberOfSounds) {
-			sound = "/Drums/" + typeOfDrum.getRandomDrum(rand).name();
-						
-			File dir = new File("Sounds" + sound);
-			File[] files = dir.listFiles();
-			File file = files[rand.nextInt(files.length)];
-						
-			auxPath = file.toString().replace("Sounds\\", "");
+		if (args.length == 9) {
+			// Genetics/Results mode
+			evaluation.setnKicks(Integer.parseInt(args[2]));
+			evaluation.setnSnares(Integer.parseInt(args[3]));
+			evaluation.setnClaps(Integer.parseInt(args[4]));
+			evaluation.setnHHC(Integer.parseInt(args[5]));
+			evaluation.setnHHO(Integer.parseInt(args[6]));
+			evaluation.setnCymbals(Integer.parseInt(args[7]));
+			evaluation.setnPercs(Integer.parseInt(args[8]));
 			
-			if (auxPath.contains("HiHatsClosed")){
-				numReps = rand.nextInt(4);
-				auxType = typeOfDrum.HiHatsClosed;
-				numHHC += 1;
-			}
-			else if (auxPath.contains("Kicks")) {
-				numReps = 1;
-				auxType = typeOfDrum.Kicks;
-				numKicks += 1;
-			}
-			else if (auxPath.contains("Snares")) {
-				numReps = 1;
-				auxType = typeOfDrum.Snares;
-				numSnares += 1;
-			}
-			else if (auxPath.contains("Claps")) {
-				numReps = 1;
-				auxType = typeOfDrum.Claps;
-				numClaps += 1;
-			}
-			else if (auxPath.contains("HiHatsOpen")) {
-				numReps = rand.nextInt(2);
-				auxType = typeOfDrum.HiHatsOpen;
-				numHHO += 1;
-			}else if (auxPath.contains("Percussion")) {
-				numReps = 1;
-				auxType = typeOfDrum.Percussion;
-				numPercs += 1;
-			}
-			else {
-				numReps = rand.nextInt(2);
-				auxType = typeOfDrum.Cymbals;
-				numCymbals += 1;
+			this.numberOfSounds = evaluation.getNumSounds();
+			
+			while(this.sounds.size() < this.numberOfSounds) {
+
+				// We choose randomly the sounds and then we create them and
+				// add them to our class atribute sounds.
+				
+				for(int i = 0; i < evaluation.getnKicks(); i++) {
+					sound = "/Drums/Kicks";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = 1;
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.Kicks, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnSnares(); i++) {
+					sound = "/Drums/Snares";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = 1;
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.Snares, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnClaps(); i++) {
+					sound = "/Drums/Claps";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = 1;
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.Claps, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnHHC(); i++) {
+					sound = "/Drums/HiHatsClosed";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = rand.nextInt(4);
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.HiHatsClosed, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnHHO(); i++) {
+					sound = "/Drums/HiHatsOpen";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = rand.nextInt(2);
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.HiHatsOpen, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnCymbals(); i++) {
+					sound = "/Drums/Cymbals";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = 1;
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.Cymbals, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
+				
+				for(int i = 0; i < evaluation.getnPercs(); i++) {
+					sound = "/Drums/Percussion";
+					
+					File dir = new File("Sounds" + sound);
+					File[] files = dir.listFiles();
+					File file = files[rand.nextInt(files.length)];
+					
+					auxPath = file.toString().replace("Sounds\\", "");
+					numReps = 1;
+
+					auxDrum = new DrumSound(auxPath, numReps, typeOfDrum.Percussion, TinySound.loadSound(auxPath));
+					auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+					this.sounds.add(auxDrum);
+				}
 			}
 			
-			auxDrum = new DrumSound(auxPath, numReps, auxType, TinySound.loadSound(auxPath));
-			auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
-			this.sounds.add(auxDrum);
+		}else {
+			// Normal mode
+			while(this.sounds.size() < this.numberOfSounds) {
+				sound = "/Drums/" + typeOfDrum.getRandomDrum(rand).name();
+							
+				File dir = new File("Sounds" + sound);
+				File[] files = dir.listFiles();
+				File file = files[rand.nextInt(files.length)];
+							
+				auxPath = file.toString().replace("Sounds\\", "");
+				
+				if (auxPath.contains("HiHatsClosed")){
+					numReps = rand.nextInt(4);
+					auxType = typeOfDrum.HiHatsClosed;
+					evaluation.setnHHC(evaluation.getnHHC() + 1);
+				}
+				else if (auxPath.contains("Kicks")) {
+					numReps = 1;
+					auxType = typeOfDrum.Kicks;
+					evaluation.setnKicks(evaluation.getnKicks() + 1);
+				}
+				else if (auxPath.contains("Snares")) {
+					numReps = 1;
+					auxType = typeOfDrum.Snares;
+					evaluation.setnSnares(evaluation.getnSnares() + 1);
+				}
+				else if (auxPath.contains("Claps")) {
+					numReps = 1;
+					auxType = typeOfDrum.Claps;
+					evaluation.setnClaps(evaluation.getnClaps() + 1);
+				}
+				else if (auxPath.contains("HiHatsOpen")) {
+					numReps = rand.nextInt(2);
+					auxType = typeOfDrum.HiHatsOpen;
+					evaluation.setnHHO(evaluation.getnHHO() + 1);
+				}
+				else if (auxPath.contains("Percussion")) {
+					numReps = 1;
+					auxType = typeOfDrum.Percussion;
+					evaluation.setnPercs(evaluation.getnPercs() + 1);
+				}
+				else {
+					numReps = 1;
+					auxType = typeOfDrum.Cymbals;
+					evaluation.setnCymbals(evaluation.getnCymbals() + 1);
+				}
+				
+				auxDrum = new DrumSound(auxPath, numReps, auxType, TinySound.loadSound(auxPath));
+				auxDrum.setDrumTimes(this.getDurationBeat(), this.numberOfBars);
+				this.sounds.add(auxDrum);
+			}
 		}
 		
 		// We order sounds by their start time for having an ordered reproduction of them.
-		this.orderTimes();
+		this.orderTimes(optimize);
 		
 		// Now with the times setted and ordered, we can make our automated evaluation and put it into the file.
 		// With the evaluation made by the software and an own evaluation from the user we can finish 
 		// the evaluation of every beat.
-		autoEval = this.automatedEvaluation(numKicks, numSnares, numClaps, numHHC, numHHO, numCymbals, numPercs);
+		evaluation.automatedEvaluation(this);
 		
 		// Write the major properties of the current simulation and their result.
-		String line = this.bpm + " " + this.numberOfSounds + " " + numKicks + " " + numSnares + " " + numClaps + " " + numHHC + " " + numHHO + " " + numCymbals + " " + numPercs + " " + autoEval + "\n";
-		metricsPath.write(line);
+		String line = 
+				this.bpm + " " + this.numberOfSounds + " " + evaluation.getnKicks() + " " + 
+				evaluation.getnSnares() + " " + evaluation.getnClaps() + " " + evaluation.getnHHC() + " " +
+				evaluation.getnHHO() + " " + evaluation.getnCymbals() + " " + evaluation.getnPercs() + " " + evaluation.getEnergy() + "\n";
 		
+		metricsPath.write(line);
 		return;
 	}
 	
@@ -137,16 +270,19 @@ public class SimulationConfigurator {
 	 * Key is the time when the sound will be played.
 	 * Values are the sounds that will be played at the time specified.
 	 * 
-	 * @param numBars Number of bars of the song (Length of the song).
 	 * @return
 	 */
-	public void orderTimes() {
-		Set<DrumSound> auxSet;
+	public void orderTimes(Boolean optimize) {
+		List<DrumSound> auxList;
 		int numRepsAux = 0;
 
+		if (optimize) {
+			this.soundsOrdered = new TreeMap<Integer, List<DrumSound>>();
+		}
+		
 		for (int i = 0; i < this.numberOfBars; i++) {
 			for(DrumSound drum: this.sounds) {					
-				if (drum.getDrumType() == typeOfDrum.HiHatsClosed || drum.getDrumType() == typeOfDrum.HiHatsOpen || drum.getDrumType() == typeOfDrum.Cymbals) {
+				if (drum.getDrumType() == typeOfDrum.HiHatsClosed || drum.getDrumType() == typeOfDrum.HiHatsOpen) {
 					numRepsAux = drum.getNumReps();
 
 					for (int k = 0; k < numRepsAux; k++) {
@@ -156,9 +292,9 @@ public class SimulationConfigurator {
 						}
 						//If not, we create a new key, and the values with it.
 						else {
-							auxSet = new HashSet<DrumSound>();
-							auxSet.add(drum);
-							this.soundsOrdered.put(drum.getStartTimes().get((numRepsAux*i)+k), auxSet);
+							auxList = new ArrayList<DrumSound>();
+							auxList.add(drum);
+							this.soundsOrdered.put(drum.getStartTimes().get((numRepsAux*i)+k), auxList);
 						}
 					}
 				}else {
@@ -168,214 +304,13 @@ public class SimulationConfigurator {
 					}
 					//If not, we create a new key, and the value with it.
 					else {
-						auxSet = new HashSet<DrumSound>();
-						auxSet.add(drum);
-						this.soundsOrdered.put(drum.getStartTimes().get(i), auxSet);			
+						auxList = new ArrayList<DrumSound>();
+						auxList.add(drum);
+						this.soundsOrdered.put(drum.getStartTimes().get(i), auxList);
 					}
 				}
 			}
 		}
-	}
-
-	public double automatedEvaluation(int nKicks, int nSnares, int nClaps, int nHHC, int nHHO, int nCymbals, int nPercs) {
-		double finalResult = 0.0;
-		double detailedResult = 0.0;
-		double divisionsResult = 0.0;
-		double generalResult = 0.0;
-		ArrayList<DrumSound> auxKicks = new ArrayList<DrumSound>();
-		ArrayList<DrumSound> auxSnares = new ArrayList<DrumSound>();
-		ArrayList<DrumSound> auxClaps = new ArrayList<DrumSound>();
-		ArrayList<Integer> allTimes = new ArrayList<Integer>();
-		
-		// Start of the automated evaluation that will give us a 
-		// mark between 0 and 10 based on the basic elements of
-		// our beat.
-		
-		if (nKicks > 0)
-			generalResult += 1;
-		else
-			generalResult -= 0.125;
-		
-		if (nSnares > 0 || nClaps > 0)
-			generalResult += 1;
-		else
-			generalResult -= 0.125;
-		
-		if (nHHC > 0)
-			generalResult += 1;
-		else
-			generalResult -= 0.125;
-		
-		if (nHHO > 0)
-			generalResult += 1;
-		else
-			generalResult -= 0.125;
-		
-		if (nKicks <= 2 && nSnares <= 2 && nClaps <= 2 && nHHC <= 2 && nHHO <= 2 && nCymbals <= 2 && nPercs <=2)
-			generalResult += 1;
-		else
-			generalResult -= 0.5;
-		
-		if (generalResult < 0.0)
-			generalResult = 0.0;
-		
-		
-		generalResult *= 2.5;
-		generalResult /= 5.0;
-		
-		System.out.println("Nota general (Sobre 2.5): " + generalResult);
-		
-		for (DrumSound drum: this.sounds) {
-			if (drum.getDrumType() == typeOfDrum.Kicks)
-				auxKicks.add(drum);
-			
-			else if(drum.getDrumType() == typeOfDrum.Snares)
-				auxSnares.add(drum);
-			
-			else if(drum.getDrumType() == typeOfDrum.Claps)
-				auxClaps.add(drum);
-			
-			for (int time: drum.getStartTimes())
-				allTimes.add(time);
-						
-		}
-		
-		// TODO: PROBAR EVALUACION GLOBAL VS EVALUACION POR 4 BEATS.
-		
-		// VERSION 31 MAYO: SOBRE 30 SIN RESTAR POR 4 VECES ERROR EN DETALLADA (4-16-5)
-		// VERSION 1 JUNIO: SOBRE 10 CON RESTA POR 4 VECES ERROR EN DETALLADA (2.5-6-1.5)
-		
-		detailedResult = this.detailedEvaluation(allTimes);
-		divisionsResult = this.getMainDivisions(auxKicks, auxSnares, auxClaps);
-		
-		// Redondeamos la nota final a 3 decimales
-		finalResult = (generalResult + divisionsResult + detailedResult);
-		
-		BigDecimal bd = new BigDecimal(finalResult);
-	    bd = bd.setScale(2, RoundingMode.HALF_UP);
-	    
-	    System.out.println("\nResultado evaluacion: " + bd.doubleValue() + "\n");
-		
-		return bd.doubleValue();
-	}
-	
-	private double getMainDivisions(ArrayList<DrumSound> kicks, ArrayList<DrumSound> snares, ArrayList<DrumSound> claps) {
-		double divTimes = 0.0;
-		double result = 0.0;
-		
-		if (kicks.size() == 0 && snares.size() == 0 && claps.size() == 0)
-			result = 2.5;
-		else {
-			if (kicks.size() > 0) {
-				if (snares.size() > 0) {
-					// Check principal divisions with the snares
-
-					for (DrumSound aux: kicks) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-					
-					for (DrumSound aux: snares) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-				}else if (claps.size() > 0) {
-					// Check principal divisions with the claps
-					
-					for (DrumSound aux: kicks) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-					
-					for (DrumSound aux: claps) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-				}
-			}else {
-				if (snares.size() > 0) {
-					// Check principal divisions with the snares
-					
-					for (DrumSound aux: snares) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-				}else if (claps.size() > 0) {
-					// Check principal divisions with the claps
-					
-					for (DrumSound aux: claps) {
-						divTimes += aux.getNumPrincipalDivs();
-					}
-				}
-			}
-			
-			// The number of main Divisions will always be the number of bars*4.
-			// As this is a very difficult property to accomplish, we multiply 
-			// by 12,5 instead of 10.
-			result = (divTimes*12.5)/(this.numberOfBars*4.0);
-			
-			if (result > 10.0) {
-				result = 10.0;
-			}
-		}
-
-		System.out.println("Nota divisiones (Sobre 1.5): " + (result/10.0)*1.5);
-		
-		return (result/10.0)*1.5;
-	}
-	
-	private double detailedEvaluation(ArrayList<Integer> allTimes) {
-		// Variable to store the result of the detailed evaluation
-		double auxResult = 0.0;
-		
-		// Variable for overload in an exact time.
-		double repetitions = 0.0;
-		
-		// Variables for overload evaluation.
-		int barDuration = this.getDurationBeat()*4;
-		int iteratorBars = 1;
-		int numSoundsPerBar = 0;
-		double overload = 0.0;
-		
-		// Variables for silence evaluation.
-		int maxSilenceTime = Math.round(this.getDurationBeat()*2.5f);
-		int actualTime = 0;
-		int lastTime = 0;
-		double silence = 0.0;
-		
-		for (Entry<Integer, Set<DrumSound>> entry : this.soundsOrdered.entrySet()) {
-			
-			if (entry.getValue().size() > 3) {
-				repetitions += 1.0;
-			}
-			
-			numSoundsPerBar += 1;
-			actualTime = entry.getKey();
-			
-			if ((actualTime - lastTime) >= maxSilenceTime) {
-				silence += 1.0;
-			}
-			
-			lastTime = entry.getKey();
-			
-			if (entry.getKey() >= barDuration) {
-				barDuration += barDuration/iteratorBars;
-				iteratorBars += 1;
-								
-				if (numSoundsPerBar >= 7)
-					overload += 1.0;
-				
-				numSoundsPerBar = 0;
-			}	
-		}
-		
-		// We penalize one more time for every 4 fails.
-		repetitions += ((int) repetitions/4);
-		silence += ((int) silence/4);
-		overload += ((int) overload/4);
-		
-		auxResult += ((1 - (repetitions/ (double) this.soundsOrdered.size())) * 10.0);
-		auxResult += (1 - (silence/ (double) this.numberOfBars)) * 10.0;
-		auxResult += (1 - (overload/ (double) this.numberOfBars)) * 10.0;
-		
-		System.out.println("Nota detallada (Sobre 6): " + ((auxResult/30.0)*6.0) + "\n	-> Penalizaciones: Repeticiones: " + ((int) repetitions/4) + ", Silencios: " + ((int) silence/4) + ", Sobrecarga: " + ((int) overload/4));
-		
-		return (auxResult/30.0)*6.0;
 	}
 		
 	public void playSimulation() {
@@ -385,45 +320,72 @@ public class SimulationConfigurator {
 		System.out.println("    -Beats per minute: " + this.bpm + ".");
 		System.out.println("    -Number of sounds: " + this.numberOfSounds + ".");
 		System.out.println("    -Length of the beat: " + ((this.getDurationBeat()*4*this.numberOfBars)/1000) + " seconds aprox.");
+		System.out.println("    -Energy: " + evaluation.getEnergy());
 		
 		System.out.println("\nAnd the beat goes on!");
 		
-		for (Entry<Integer, Set<DrumSound>> entry : this.soundsOrdered.entrySet()) {
-				try {
-					Thread.sleep(entry.getKey() - oldTime);
-					oldTime = entry.getKey();
-				} catch (InterruptedException e) {}
+		for (Entry<Integer, List<DrumSound>> entry : this.soundsOrdered.entrySet()) {
+
+			try {
+				Thread.sleep(entry.getKey() - oldTime);
+				oldTime = entry.getKey();
+			} catch (InterruptedException e) {}
 				
 			//Play the random beat!!
 			for (DrumSound drum: entry.getValue()) {
 				drum.getDrumSound().play();
-			}
+			}			
 		}
+		
+		
 		
 		//We wait one more second for the delay/reverb on sounds.
 		try {
 			Thread.sleep(1500);
 		} catch (InterruptedException e) {}
 		
-		System.out.println("\nBeat finished!\n");
+		//System.out.println("\nBeat finished!\n");
 	}
 	
-	/**
-	 * Obtain the duration of a beat in the current simulation.
-	 * It depends entirely on the bpm.
-	 * 
-	 * @return The time of a beat in the current simulation.
-	 */
+	// Getters and setters methods.
+	
+	public float getBeatsPerMinute() {
+		return this.bpm;
+	}
+	
+	public int getNumberOfSounds() {
+		return this.numberOfSounds;
+	}
+	
+	public int getNumberOfBars() {
+		return this.numberOfBars;
+	}
+	
+	public void setSounds(ArrayList<DrumSound> arr) {
+		this.sounds = arr;
+	}
+	
 	public int getDurationBeat() {
 		return Math.round(((1/bpm)*60)*1000);
 	}
 	
-	/**
-	 * Obtains an array with the path of all sounds in the current simulation.
-	 * 
-	 * @return The array of the paths to the sounds for the current simulation.
-	 */
-	public ArrayList<DrumSound> getSimulationSounds (){
+	public ArrayList<DrumSound> getSounds (){
 		return this.sounds;
+	}
+	
+	public SortedMap<Integer, List<DrumSound>> getSoundsOrdered (){
+		return this.soundsOrdered;
+	}
+
+	public void setBeatsPerMinute(float beatsPerMin) {
+		this.bpm = beatsPerMin;
+	}
+
+	public void setNumberOfSounds(int numSounds) {
+		this.numberOfSounds = numSounds;
+	}
+	
+	public SimulationEvaluation getEvaluation() {
+		return this.evaluation;
 	}
 }

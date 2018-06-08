@@ -1,4 +1,4 @@
-package simulator;
+package simulator.soundRecorder;
 
 import javax.sound.sampled.*;
 import java.io.*;
@@ -70,7 +70,7 @@ public class SoundRecorder {
     /**
      * Closes the target data line to finish capturing and recording
      */
-    void finish() {
+    public void finish() {
         line.stop();
         line.close();
         System.out.println("Finished");
